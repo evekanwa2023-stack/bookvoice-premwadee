@@ -2575,24 +2575,42 @@ async function prewarmNextChapterAudio(chIdx, preDiv) {
     if (!txt) return;
     // `text` is stored so playFrom() can verify it matches paragraphs[0].text
     // before adopting the blob (v3.3.17).
-    const firstPromise = fetchAudioBlob(txt);
+    // Bookvoice-Premwadee: the opening words of a chapter must never wait on the slow voice, so a
+    // failed fetch is retried here in the background (fetchAudioBlob already retries a few times).
+    const fetchFirst = async () => {
+      let lastErr;
+      for (let a = 0; a < 3; a++) {
+        try { return await fetchAudioBlob(txt); } catch(e) { lastErr = e; await sleepMs(2000); }
+      }
+      throw lastErr;
+    };
+    const firstPromise = fetchFirst();
+    firstPromise.catch(() => {});
     nextChapterFirstAudioCache = { chapter: chIdx, text: txt, promise: firstPromise };
 
     // v3.3.41: a chapter opens with a heading/epigraph, so paragraph 0 is often
     // only a few seconds of audio — and paragraphs 1 and 2 used to be requested
     // only AFTER the chapter started, so the voice stopped right after the first
-    // words waiting for them. Warm them too (one at a time, after the first).
+    // words waiting for them. Premwadee: warm the first NEXT_CHAPTER_WARM_PARAS paragraphs, two
+    // requests at a time (kept below the current chapter's own preload so it is not starved).
     prewarmTextCache = {};
-    const texts = firstParagraphTextsFromElement(preDiv, 3);
-    firstPromise.catch(() => {}).then(async () => {
-      for (let k = 1; k < texts.length; k++) {
+    const texts = firstParagraphTextsFromElement(preDiv, NEXT_CHAPTER_WARM_PARAS);
+    let nextK = 1;
+    const warmWorker = async () => {
+      while (nextK < texts.length) {
+        if (nextChapterFirstAudioCache === null || nextChapterFirstAudioCache.chapter !== chIdx) {
+          if (currentChapter + 1 !== chIdx) return; // user moved elsewhere; stop warming
+        }
+        const k = nextK++;
         const key = prewarmKey(texts[k]);
+        if (prewarmTextCache[key]) continue;
         const p = fetchAudioBlob(texts[k]);
         prewarmTextCache[key] = p;
         p.catch(() => { delete prewarmTextCache[key]; });
         try { await p; } catch(e) {}
       }
-    });
+    };
+    firstPromise.catch(() => {}).then(() => Promise.all([warmWorker(), sleepMs(400).then(warmWorker)]));
   } catch(e) {}
 }
 
@@ -3032,29 +3050,58 @@ function clearAudioCacheAll() {
 // not-yet-cached paragraph AT OR AFTER the current reading position (then
 // wraps around to earlier ones), re-evaluated every iteration so it follows
 // the reader. A paragraph that fails twice is skipped (no hot retry loop).
+// Bookvoice-Premwadee: Premwadee on the Colab server is slow (roughly 8 s of server time per new
+// paragraph, 15-30 s latency each) but a paragraph plays for ~15 s, so one request at a time can
+// never keep ahead of the voice. PRELOAD_WORKERS requests run in parallel, always on the nearest
+// uncached paragraph after the reading position, and when the whole chapter is buffered the same
+// pool carries on into the NEXT chapter (warmNextChapter) so its first paragraphs are ready
+// before the current one ends.
+const PRELOAD_WORKERS = 3;
+const NEXT_CHAPTER_WARM_PARAS = 14;
 async function preloadChapterAudio(chIdx) {
   const myToken = ++audioPreloadToken;
   buildParagraphs();
   const fails = {};
-  while (true) {
-    if (myToken !== audioPreloadToken || chIdx !== currentChapter) return;
-    const n = paragraphs.length;
-    if (!n) return;
-    const cur = findParagraphForSentence(sentenceIndex);
-    let next = -1;
-    for (let k = 0; k < n; k++) {
-      const idx = (cur + k) % n;
-      if ((fails[idx] || 0) >= 2) continue;
-      if (!audioCache[audioCacheKey(paragraphs[idx].startIdx)]) { next = idx; break; }
+  const worker = async () => {
+    while (true) {
+      if (myToken !== audioPreloadToken || chIdx !== currentChapter) return;
+      const n = paragraphs.length;
+      if (!n) return;
+      const cur = findParagraphForSentence(sentenceIndex);
+      let next = -1;
+      for (let k = 0; k < n; k++) {
+        const idx = (cur + k) % n;
+        if ((fails[idx] || 0) >= 3) continue;
+        if (!audioCache[audioCacheKey(paragraphs[idx].startIdx)]) { next = idx; break; }
+      }
+      if (next === -1) return; // everything cached (or given up on)
+      try { await getCachedAudio(paragraphs[next].startIdx); }
+      catch(e) {
+        fails[next] = (fails[next] || 0) + 1;
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      await new Promise(r => setTimeout(r, 60));
     }
-    if (next === -1) return; // everything cached (or given up on)
-    try { await getCachedAudio(paragraphs[next].startIdx); }
-    catch(e) {
-      fails[next] = (fails[next] || 0) + 1;
-      await new Promise(r => setTimeout(r, 1500));
-    }
-    await new Promise(r => setTimeout(r, 60));
-  }
+  };
+  // stagger the starts so the first request (the one needed soonest) is not queued behind the rest
+  await Promise.all(Array.from({ length: PRELOAD_WORKERS }, (_, w) =>
+    new Promise(r => setTimeout(r, w * 300)).then(worker)));
+  if (myToken === audioPreloadToken && chIdx === currentChapter) warmNextChapter();
+}
+
+// Render the next chapter off-screen and buffer the audio for its first paragraphs. Safe to call
+// repeatedly: it does nothing once the chapter has been pre-rendered.
+function warmNextChapter() {
+  if (currentChapter >= chapters.length - 1) return;
+  const nextCi = currentChapter + 1;
+  if (document.getElementById('prerender-ch-' + nextCi)) return;
+  const preDiv = document.createElement('div');
+  preDiv.id = 'prerender-ch-' + nextCi;
+  preDiv.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;top:-9999px';
+  document.body.appendChild(preDiv);
+  loadChapterInto(nextCi, preDiv)
+    .then(() => prewarmNextChapterAudio(nextCi, preDiv))
+    .catch(() => {});
 }
 
 function clearHighlightTimers() {
@@ -3320,18 +3367,9 @@ async function playFromRun(startSentIdx) {
     // Colab and the chapter's final paragraphs are often short, so the
     // next chapter's first audio often wasn't ready when the chapter ended,
     // forcing a visible wait + a duplicate fetch.)
-    if (pIdx >= paragraphs.length - 5 && currentChapter < chapters.length - 1) {
-      const nextCi = currentChapter + 1;
-      if (!document.getElementById('prerender-ch-' + nextCi)) {
-        const preDiv = document.createElement('div');
-        preDiv.id = 'prerender-ch-' + nextCi;
-        preDiv.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;top:-9999px';
-        document.body.appendChild(preDiv);
-        loadChapterInto(nextCi, preDiv)
-          .then(() => prewarmNextChapterAudio(nextCi, preDiv))
-          .catch(() => {});
-      }
-    }
+    // Bookvoice-Premwadee: normally the preloader has already started this (as soon as the chapter
+    // was buffered); this is the safety net, now with a longer lead (last 15 paragraphs).
+    if (pIdx >= paragraphs.length - 15) warmNextChapter();
 
     if (sleepEndChapter) { stopReading(); sleepEndChapter = false; return; }
 
@@ -5974,4 +6012,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.1 (from Bookvoice v3.3.47) | built 2026-11-01 -->
+<!-- Bookvoice-Premwadee v1.2 (from Bookvoice v3.3.47) | built 2026-11-01 -->
