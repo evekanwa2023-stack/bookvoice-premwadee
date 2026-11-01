@@ -556,8 +556,9 @@ body.theme-sepia{--bg:#f4ecd8;--surface:#ede0c4;--surface2:#e8d9b8;--border:#c9b
       <input type="text" id="fr-find" placeholder="Find (e.g. Kloe)" style="width:100%;margin-bottom:8px;font-size:14px">
       <input type="text" id="fr-replace" placeholder="Replace with (e.g. Cloe)" style="width:100%;margin-bottom:8px;font-size:14px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <button type="button" onclick="insertZwSep()" style="flex-shrink:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit">+ ตัวคั่นล่องหน {zw}</button>
-        <span style="font-size:11px;color:var(--muted);line-height:1.5">แทรกตรงรอยต่อคำ เช่น อ้อม{zw}อก ให้ TTS ตัดคำถูก โดยไม่หยุดเสียงและไม่เห็นบนจอ · ถ้า {zw} ไม่ช่วยกับเปรมวดี ลองพิมพ์ {zn} แทน เช่น ไห{zn}ร้าว</span>
+        <button type="button" onclick="insertZwSep('{zn}')" style="flex-shrink:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;border-color:var(--accent)">+ ตัวคั่น {zn}</button>
+        <button type="button" onclick="insertZwSep('{zw}')" style="flex-shrink:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit">+ {zw}</button>
+        <span style="font-size:11px;color:var(--muted);line-height:1.5">แทรกตรงรอยต่อคำ เช่น อ้อม{zw}อก ให้ TTS ตัดคำถูก โดยไม่หยุดเสียงและไม่เห็นบนจอ · เปรมวดีฟัง {zn} ได้ผล ({zw} แทบไม่มีผล) เช่น ไห{zn}ร้าว</span>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;background:var(--surface2);border-radius:8px;padding:4px">
         <button id="scope-global-btn" onclick="setRuleScope('global')" style="flex:1;padding:7px;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--accent);color:#13120f;font-weight:500">All books</button>
@@ -2242,13 +2243,14 @@ function savePronounceRules() {
 // Rules show/edit it as the visible token {zw} so it is never an invisible mystery character.
 function zwIn(s) { return s.replace(/\{zw\}/gi, '​').replace(/\{zn\}/gi, '‌'); }
 function zwOut(s) { return s.replace(/​/g, '{zw}').replace(/‌/g, '{zn}'); }
-function insertZwSep() {
+function insertZwSep(tok) {
+  tok = tok || '{zn}';
   const el = document.getElementById('fr-replace');
   if (!el) return;
   const a = el.selectionStart ?? el.value.length, b = el.selectionEnd ?? a;
-  el.value = el.value.slice(0, a) + '{zw}' + el.value.slice(b);
+  el.value = el.value.slice(0, a) + tok + el.value.slice(b);
   el.focus();
-  el.setSelectionRange(a + 4, a + 4);
+  el.setSelectionRange(a + tok.length, a + tok.length);
 }
 
 function addReplaceRule() {
@@ -6039,4 +6041,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.7 (from Bookvoice v3.3.48) | built 2026-11-01 -->
+<!-- Bookvoice-Premwadee v1.8 (from Bookvoice v3.3.48) | built 2026-11-01 -->
