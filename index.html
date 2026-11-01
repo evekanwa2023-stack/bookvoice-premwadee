@@ -549,6 +549,10 @@ body.theme-sepia{--bg:#f4ecd8;--surface:#ede0c4;--surface2:#e8d9b8;--border:#c9b
       <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Fix pronunciation or replace any text. Matches <strong>whole words only</strong> — "Ship" won't change "relationship".</p>
       <input type="text" id="fr-find" placeholder="Find (e.g. Kloe)" style="width:100%;margin-bottom:8px;font-size:14px">
       <input type="text" id="fr-replace" placeholder="Replace with (e.g. Cloe)" style="width:100%;margin-bottom:8px;font-size:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <button type="button" onclick="insertZwSep()" style="flex-shrink:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit">+ ตัวคั่นล่องหน {zw}</button>
+        <span style="font-size:11px;color:var(--muted);line-height:1.5">แทรกตรงรอยต่อคำ เช่น อ้อม{zw}อก ให้ TTS ตัดคำถูก โดยไม่หยุดเสียงและไม่เห็นบนจอ</span>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;background:var(--surface2);border-radius:8px;padding:4px">
         <button id="scope-global-btn" onclick="setRuleScope('global')" style="flex:1;padding:7px;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:var(--accent);color:#13120f;font-weight:500">All books</button>
         <button id="scope-book-btn" onclick="setRuleScope('book')" style="flex:1;padding:7px;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;background:none;color:var(--muted)">This book only</button>
@@ -2224,9 +2228,26 @@ function savePronounceRules() {
   localStorage.setItem('bv_pronounce', JSON.stringify(pronounceRules));
 }
 
+// v3.3.48: invisible word separator for Replace rules. "{zw}" typed (or inserted by the
+// "+ ตัวคั่นล่องหน" button) in the Replace field is stored as U+200B (zero-width space), so
+// "อ้อม{zw}อก" is spoken as two words ("อ้อม"+"อก") instead of "อ้อ"+"มอก", with no pause
+// and nothing visible on screen. It only ever reaches the TTS text (applyPronunciation),
+// never the displayed sentence, so highlighting/scroll positions are unaffected.
+// Rules show/edit it as the visible token {zw} so it is never an invisible mystery character.
+function zwIn(s) { return s.replace(/\{zw\}/gi, '​'); }
+function zwOut(s) { return s.replace(/​/g, '{zw}'); }
+function insertZwSep() {
+  const el = document.getElementById('fr-replace');
+  if (!el) return;
+  const a = el.selectionStart ?? el.value.length, b = el.selectionEnd ?? a;
+  el.value = el.value.slice(0, a) + '{zw}' + el.value.slice(b);
+  el.focus();
+  el.setSelectionRange(a + 4, a + 4);
+}
+
 function addReplaceRule() {
   const find = document.getElementById('fr-find').value.trim();
-  const replace = document.getElementById('fr-replace').value.trim();
+  const replace = zwIn(document.getElementById('fr-replace').value.trim());
   if (!find) { alert('Enter a word to find.'); return; }
   // Remove duplicate
   pronounceRules = pronounceRules.filter(r =>
@@ -2243,7 +2264,7 @@ function addReplaceRule() {
   document.getElementById('fr-replace').value = '';
   renderRules();
   const scopeLabel = ruleScope === 'global' ? 'all books' : '"' + (bookTitle || 'this book') + '"';
-  showToast('"' + find + '" → "' + replace + '" (' + scopeLabel + ')');
+  showToast('"' + find + '" → "' + zwOut(replace) + '" (' + scopeLabel + ')');
 }
 
 function renderRules() {
@@ -2261,7 +2282,7 @@ function renderRules() {
     row.id = 'rule-row-' + i;
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:13px';
     row.innerHTML = scopeTag +
-      `<span style="flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${escHtml(rule.find)}" → "${escHtml(rule.replace)}"</span>` +
+      `<span style="flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${escHtml(rule.find)}" → "${escHtml(zwOut(rule.replace))}"</span>` +
       `<button onclick="editRule(${i})" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:12px;cursor:pointer;flex-shrink:0;padding:4px 10px">Edit</button>` +
       `<button onclick="deleteRule(${i})" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:12px;cursor:pointer;flex-shrink:0;padding:4px 10px">Del</button>`;
     el.appendChild(row);
@@ -2275,7 +2296,7 @@ function editRule(i) {
   row.innerHTML = `
     <input id="edit-find-${i}" value="${escHtml(rule.find)}" placeholder="Find" style="flex:1;background:var(--surface);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-size:13px;padding:4px 8px;font-family:inherit;min-width:0">
     <span style="color:var(--muted);flex-shrink:0">→</span>
-    <input id="edit-replace-${i}" value="${escHtml(rule.replace)}" placeholder="Replace" style="flex:1;background:var(--surface);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-size:13px;padding:4px 8px;font-family:inherit;min-width:0">
+    <input id="edit-replace-${i}" value="${escHtml(zwOut(rule.replace))}" placeholder="Replace" style="flex:1;background:var(--surface);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-size:13px;padding:4px 8px;font-family:inherit;min-width:0">
     <button onclick="saveRule(${i})" style="background:var(--accent);border:none;color:#fff;border-radius:6px;font-size:12px;padding:4px 10px;cursor:pointer;flex-shrink:0">Save</button>
     <button onclick="renderRules()" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0">Cancel</button>`;
   document.getElementById('edit-find-' + i)?.focus();
@@ -2288,7 +2309,7 @@ function saveRule(i) {
   const newFind = findEl.value.trim();
   if (!newFind) return;
   pronounceRules[i].find = newFind;
-  pronounceRules[i].replace = replaceEl.value;
+  pronounceRules[i].replace = zwIn(replaceEl.value);
   savePronounceRules();
   renderRules();
 }
@@ -6012,4 +6033,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.2 (from Bookvoice v3.3.47) | built 2026-11-01 -->
+<!-- Bookvoice-Premwadee v1.3 (from Bookvoice v3.3.48) | built 2026-11-01 -->
