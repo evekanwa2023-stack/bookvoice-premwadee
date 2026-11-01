@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-:root{--bg:#13120f;--surface:#1e1c18;--surface2:#272420;--border:#35322c;--accent:#d4a84b;--accent-dim:rgba(212,168,75,0.15);--green:#7aab8a;--text:#ede8df;--muted:#7a7268;--fs:17px}
+:root{--bg:#13120f;--surface:#1e1c18;--surface2:#272420;--border:#35322c;--accent:#f06fa4;--accent-dim:rgba(240,111,164,0.15);--green:#7aab8a;--text:#ede8df;--muted:#7a7268;--fs:17px}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .loading-bar{position:fixed;top:0;left:0;right:0;height:2px;background:var(--accent);display:none;animation:lp 1s infinite alternate;z-index:999}
@@ -146,6 +146,23 @@ header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1
 @media(max-width:540px){.sidebar{display:none}.reader-body{font-size:var(--fs)}}
 @media(min-width:768px) and (orientation:landscape){.reader-body{max-width:min(820px,90%)}}
 @media(min-width:1024px){.reader-body{max-width:min(860px,88%)}}
+/* Bookvoice-Premwadee: tablet / landscape iPad - the control panel scales up with the screen */
+@media(min-width:900px){
+.player{padding:12px 32px 22px}
+.prog-bar{height:5px}
+.prog-time{font-size:14px;min-width:90px}
+.player-row1{gap:18px}
+.player-row1 .ctrl-btn{width:56px;height:56px;font-size:20px}
+.player-row1 .play-btn{width:76px!important;height:76px!important;font-size:30px!important}
+.now-label{font-size:15px;gap:8px}
+.now-ch{font-size:20px}
+#sent-counter,#lang-indicator{font-size:15px!important}
+.dot{width:9px;height:9px}
+.player-row2{gap:16px;padding-top:12px}
+.player-row2 .ctrl-btn{width:48px!important;height:48px!important;font-size:16px!important}
+.player-row2 .setting-lbl{font-size:16px}
+#speed-val{width:78px!important;font-size:20px!important;padding:10px 4px!important}
+}
 /* Auto-hide player */
 .player{transition:transform .3s ease, opacity .3s ease}
 .player.hidden-player{transform:translateY(100%);opacity:0;pointer-events:none;position:absolute;bottom:0;left:0;right:0}
@@ -190,8 +207,8 @@ header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1
 .sync-toast.show{opacity:1}
 
 /* ── THEMES ── */
-body.theme-light{--bg:#f5f0e8;--surface:#ffffff;--surface2:#f0ebe0;--border:#ddd5c5;--text:#2c2418;--muted:#8a7d6b;--accent:#b8860b}
-body.theme-sepia{--bg:#f4ecd8;--surface:#ede0c4;--surface2:#e8d9b8;--border:#c9b99a;--text:#3b2f18;--muted:#7a6a50;--accent:#8b6914}
+body.theme-light{--bg:#f5f0e8;--surface:#ffffff;--surface2:#f0ebe0;--border:#ddd5c5;--text:#2c2418;--muted:#8a7d6b;--accent:#c2185b}
+body.theme-sepia{--bg:#f4ecd8;--surface:#ede0c4;--surface2:#e8d9b8;--border:#c9b99a;--text:#3b2f18;--muted:#7a6a50;--accent:#a83a6d}
 /* ── STATS ── */
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 20px}
 .stat-card{background:var(--surface2);border-radius:10px;padding:14px;text-align:center}
@@ -4106,7 +4123,7 @@ function searchInBook(query) {
     const before = escHtml(r.text.substring(0, r.matchStart));
     const match = escHtml(r.text.substring(r.matchStart, r.matchStart + r.matchLen));
     const after = escHtml(r.text.substring(r.matchStart + r.matchLen, r.matchStart + r.matchLen + 80));
-    const snippet = before + '<mark style="background:rgba(212,168,75,.4);color:var(--text);border-radius:2px;padding:0 1px">' + match + '</mark>' + after + (r.text.length > r.matchStart + r.matchLen + 80 ? '…' : '');
+    const snippet = before + '<mark style="background:rgba(240,111,164,.4);color:var(--text);border-radius:2px;padding:0 1px">' + match + '</mark>' + after + (r.text.length > r.matchStart + r.matchLen + 80 ? '…' : '');
 
     div.innerHTML = `
       <div style="font-size:11px;color:var(--accent);margin-bottom:4px">${escHtml(r.chapterTitle)}</div>
@@ -6033,4 +6050,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.3 (from Bookvoice v3.3.48) | built 2026-11-01 -->
+<!-- Bookvoice-Premwadee v1.4 (from Bookvoice v3.3.48) | built 2026-11-01 -->
