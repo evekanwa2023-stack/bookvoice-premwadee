@@ -3224,13 +3224,18 @@ async function playFromRun(startSentIdx) {
   // This ensures Emma reads exactly from where you tapped, not from paragraph start
   const firstPara = paragraphs[pIdx];
   const firstSentInPara = firstPara ? firstPara.startIdx : 0;
-  let firstParaText;
-  if (startSentIdx > firstSentInPara && firstPara) {
-    // Trim the paragraph to start from tapped sentence
-    const trimmedSents = sentences.slice(startSentIdx, firstPara.startIdx + firstPara.count);
-    firstParaText = trimmedSents.join(' ');
-  } else {
-    firstParaText = firstPara?.text || '';
+  // Bookvoice-Premwadee: starting mid-paragraph (skip sentence, tap a sentence) used to fetch a
+  // TRIMMED copy of the paragraph - a brand-new request, 10-30 s with Premwadee. Now the whole
+  // paragraph's audio (normally already buffered by the preloader) is used and playback jumps to
+  // the sentence by position, so a skip starts at once.
+  const firstParaText = firstPara?.text || '';
+  const firstEntryIdx = firstPara ? firstPara.startIdx : startSentIdx;
+  let seekFrac = 0;
+  if (firstPara && startSentIdx > firstSentInPara) {
+    const grp = sentences.slice(firstPara.startIdx, firstPara.startIdx + firstPara.count);
+    const w = grp.map((x, j) => highlightWeight(x, j === grp.length - 1));
+    const tot = w.reduce((a, b) => a + b, 0) || 1;
+    seekFrac = w.slice(0, startSentIdx - firstPara.startIdx).reduce((a, b) => a + b, 0) / tot;
   }
 
   // Fetch first blob (cached — instant if already preloaded/visited).
@@ -3250,7 +3255,7 @@ async function playFromRun(startSentIdx) {
       // playing the mismatched blob; assigning the fresh src below interrupts
       // it (a brief repeat of the opening words, but highlights stay in sync).
       if (pre && pre.chapter === currentChapter) nextChapterFirstAudioCache = null;
-      currentBlobUrl = await getCachedAudio(startSentIdx);
+      currentBlobUrl = await getCachedAudio(firstEntryIdx);
     }
   } catch(e) {
     // This used to just `return` here — silently, with the "Reading..."
@@ -3263,7 +3268,7 @@ async function playFromRun(startSentIdx) {
     // attempt before giving up (v3.3.12).
     nextChapterFirstAudioCache = null;
     try {
-      currentBlobUrl = await getCachedAudio(startSentIdx);
+      currentBlobUrl = await getCachedAudio(firstEntryIdx);
     } catch(e2) {
       setStatus('paused');
       showToast('⚠️ Could not load audio — tap play to retry');
@@ -3292,10 +3297,7 @@ async function playFromRun(startSentIdx) {
     const firstSent = Math.max(startSentIdx, para.startIdx);
 
     // For trimmed first paragraph, create a virtual para with correct sentence range
-    const isFirstPara = (pIdx === findParagraphForSentence(startSentIdx) && startSentIdx > para.startIdx);
-    const effectivePara = isFirstPara
-      ? { startIdx: startSentIdx, count: para.count - (startSentIdx - para.startIdx), text: firstParaText }
-      : para;
+    const effectivePara = para;
 
     // Set audio src and play.
     // v3.3.16: chapter auto-advance may have ALREADY started this exact blob
@@ -3319,9 +3321,17 @@ async function playFromRun(startSentIdx) {
       return;
     }
 
+    // Jump to the chosen sentence inside the (whole-paragraph) audio.
+    if (seekFrac > 0 && !alreadyPlaying) {
+      if (audio.duration && isFinite(audio.duration)) {
+        try { audio.currentTime = Math.max(0, Math.min(audio.duration * seekFrac, audio.duration - 0.4)); } catch(e) {}
+      }
+      seekFrac = 0;
+    }
+
     // Schedule highlights using duration estimate (words/speed)
     const estDuration = (effectivePara.text.split(/\s+/).length / (speed * 2.5)) * 1000;
-    scheduleHighlights(effectivePara, firstSent, estDuration, alreadyPlaying ? audio.currentTime * 1000 : 0);
+    scheduleHighlights(effectivePara, firstSent, estDuration, audio.currentTime * 1000);
 
     // Actually play. If browser refuses autoplay, do not fake progress or skip silently.
     const played = alreadyPlaying ? true : await safePlayAudio(audio, mySession);
@@ -6041,4 +6051,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.8 (from Bookvoice v3.3.48) | built 2026-11-01 -->
+<!-- Bookvoice-Premwadee v1.9 (from Bookvoice v3.3.48) | built 2026-11-01 -->
