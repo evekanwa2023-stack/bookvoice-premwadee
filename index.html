@@ -653,7 +653,7 @@ body.theme-sepia{--bg:#f4ecd8;--surface:#ede0c4;--surface2:#e8d9b8;--border:#c9b
       </button>
 
       <div id="more-extra" style="display:none">
-        <button onclick="closeSheet('more-sheet');openSheet('findreplace-sheet')" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 20px;background:none;border:none;color:var(--text);font-size:14px;font-family:inherit;cursor:pointer;border-bottom:1px solid var(--border)"><span>A→B Find &amp; Replace</span></button>
+        <button onclick="closeSheet('more-sheet');openFindReplaceSheet()" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 20px;background:none;border:none;color:var(--text);font-size:14px;font-family:inherit;cursor:pointer;border-bottom:1px solid var(--border)"><span>A→B Find &amp; Replace</span></button>
         <button onclick="closeSheet('more-sheet');openSheet('zhnames-sheet')" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 20px;background:none;border:none;color:var(--text);font-size:14px;font-family:inherit;cursor:pointer;border-bottom:1px solid var(--border)"><span>🀄 Chinese Names</span></button>
         <div class="setting-row" style="padding:10px 20px">
           <label style="font-size:14px">🌐 Read Language</label>
@@ -816,7 +816,7 @@ body.theme-sepia{--bg:#f4ecd8;--surface:#ede0c4;--surface2:#e8d9b8;--border:#c9b
             style="width:46px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:13px;padding:4px 2px;font-family:inherit;font-weight:500"
             onchange="setSpeedInput(this.value)" onclick="this.select()">
           <button class="ctrl-btn" onclick="changeSpeedStep(1)" style="width:28px;height:28px;font-size:15px;flex-shrink:0">+</button>
-          <button class="ctrl-btn" onclick="openSheet('findreplace-sheet')" style="width:28px;height:28px;font-size:11px;flex-shrink:0" title="Find & Replace">A→B</button>
+          <button class="ctrl-btn" onclick="openFindReplaceSheet()" style="width:28px;height:28px;font-size:11px;flex-shrink:0" title="Find & Replace">A→B</button>
         </div>
       </div>
     </div>
@@ -1086,6 +1086,22 @@ function changeServer() { document.getElementById('server-url').value=serverUrl;
 // ── SHEETS ──
 function openSheet(id) { document.getElementById(id).classList.add('open'); }
 function closeSheet(id) { document.getElementById(id).classList.remove('open'); }
+function openFindReplaceSheet() {
+  // Pre-fill Find & Replace's "Find" field from whatever text is currently
+  // selected/highlighted in the reading view, so the user only has to type
+  // the replacement. Falls back to a normal empty open if nothing is selected.
+  var sel = '';
+  try { sel = (window.getSelection ? window.getSelection().toString() : '').replace(/\s+/g, ' ').trim(); } catch (e) {}
+  openSheet('findreplace-sheet');
+  var findInput = document.getElementById('fr-find');
+  if (sel && findInput) {
+    findInput.value = sel;
+    var replaceInput = document.getElementById('fr-replace');
+    if (replaceInput) replaceInput.focus();
+  } else if (findInput) {
+    findInput.focus();
+  }
+}
 
 
 // ── NCX/NAV TITLE LOOKUP ──
@@ -6051,4 +6067,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.9 (from Bookvoice v3.3.48) | built 2026-11-01 -->
+<!-- Bookvoice-Premwadee v1.10 (from Bookvoice v3.3.48) | built 2026-11-24 -->
