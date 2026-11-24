@@ -1086,12 +1086,28 @@ function changeServer() { document.getElementById('server-url').value=serverUrl;
 // ── SHEETS ──
 function openSheet(id) { document.getElementById(id).classList.add('open'); }
 function closeSheet(id) { document.getElementById(id).classList.remove('open'); }
+// Tracks the most recent non-empty text selection. On iOS Safari, tapping a
+// button outside the current selection (like the A->B control, which lives in
+// the fixed player bar below the text) collapses the selection before the
+// button's own click handler runs, so reading window.getSelection() AT CLICK
+// TIME is usually already empty. selectionchange fires earlier and still
+// sees the real selection, so we cache it here and consume it on open.
+var __lastTextSelection = '';
+document.addEventListener('selectionchange', function () {
+  try {
+    var s = (window.getSelection ? window.getSelection().toString() : '').replace(/\s+/g, ' ').trim();
+    if (s) __lastTextSelection = s;
+  } catch (e) {}
+});
+
 function openFindReplaceSheet() {
-  // Pre-fill Find & Replace's "Find" field from whatever text is currently
+  // Pre-fill Find & Replace's "Find" field from whatever text was just
   // selected/highlighted in the reading view, so the user only has to type
-  // the replacement. Falls back to a normal empty open if nothing is selected.
-  var sel = '';
-  try { sel = (window.getSelection ? window.getSelection().toString() : '').replace(/\s+/g, ' ').trim(); } catch (e) {}
+  // the replacement. Falls back to a normal empty open if nothing was selected.
+  var sel = __lastTextSelection;
+  if (!sel) {
+    try { sel = (window.getSelection ? window.getSelection().toString() : '').replace(/\s+/g, ' ').trim(); } catch (e) {}
+  }
   openSheet('findreplace-sheet');
   var findInput = document.getElementById('fr-find');
   if (sel && findInput) {
@@ -1101,6 +1117,7 @@ function openFindReplaceSheet() {
   } else if (findInput) {
     findInput.focus();
   }
+  __lastTextSelection = ''; // consumed - don't let it linger for a later unrelated open
 }
 
 
@@ -6067,4 +6084,4 @@ function attemptSilentAuth() {
 </script>
 </body>
 </html>
-<!-- Bookvoice-Premwadee v1.10 (from Bookvoice v3.3.48) | built 2026-11-24 -->
+<!-- Bookvoice-Premwadee v1.11 (from Bookvoice v3.3.48) | built 2026-11-24 -->
